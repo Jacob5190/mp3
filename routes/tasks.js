@@ -2,11 +2,9 @@ const express = require('express');
 const Task = require('../models/task');
 const User = require('../models/user');
 const mongoose = require('mongoose');
-const { isValidObjectId } = require('./_utils'); // still useful for by-id checks
+const { isValidObjectId } = require('./_utils');
 
 const router = express.Router();
-
-/* ----------------------------- helpers ----------------------------- */
 
 function parseJSONParam(val, name) {
   if (val === undefined) return undefined;
@@ -19,7 +17,6 @@ function parseJSONParam(val, name) {
 }
 
 function parseQueryWithFilterAlias(req, defaults = {}) {
-  // Allow ?filter= as an alias for ?where=
   const rawWhere = req.query.where ?? req.query.filter;
   const where  = rawWhere ? parseJSONParam(rawWhere, rawWhere === req.query.where ? 'where' : 'filter') : {};
   const sort   = parseJSONParam(req.query.sort, 'sort') || undefined;
@@ -42,7 +39,6 @@ function coerceCompleted(val, fallback = false) {
 }
 
 function coerceDeadline(val) {
-  // Accept ISO strings or epoch millis (string/number)
   if (val instanceof Date) return val;
   const n = Number(val);
   const d = isNaN(n) ? new Date(val) : new Date(n);
@@ -55,7 +51,6 @@ function coerceDeadline(val) {
 }
 
 async function applyAssignment(task, assignedUserId) {
-  // Treat '', null, undefined as unassigned
   if (assignedUserId === '' || assignedUserId == null) {
     task.assignedUser = null;
     task.assignedUserName = 'unassigned';
@@ -86,17 +81,15 @@ function parseJSONParam(val, name) {
 // GET /api/tasks
 router.get('/', async (req, res, next) => {
   try {
-    // Accept ?filter= as alias for ?where= and keep default limit=100
     const rawWhere = req.query.where ?? req.query.filter;
     const where  = rawWhere ? parseJSONParam(rawWhere, rawWhere === req.query.where ? 'where' : 'filter') : {};
     let   select = parseJSONParam(req.query.select, 'select') || undefined;
     const sort   = parseJSONParam(req.query.sort, 'sort') || undefined;
 
-    // --- Compatibility shim: if _id is 1 or 0 in where/filter, treat it as projection, not a filter
     if (where && typeof where === 'object' && Object.prototype.hasOwnProperty.call(where, '_id')) {
       if (where._id === 1 || where._id === 0) {
         select = { ...(select || {}), _id: where._id };
-        delete where._id; // prevent CastError by not filtering on _id:1/0
+        delete where._id;
       }
     }
 
@@ -135,12 +128,10 @@ router.post('/', async (req, res, next) => {
       completed: coerceCompleted(req.body.completed, false)
     });
 
-    // Optional assignment
     const assignedUserId = await applyAssignment(task, req.body.assignedUser);
 
     await task.save();
 
-    // If assigned, push into user's pendingTasks (avoid dup)
     if (assignedUserId) {
       await User.updateOne(
         { _id: assignedUserId, pendingTasks: { $ne: task._id } },
@@ -183,20 +174,17 @@ router.put('/:id', async (req, res, next) => {
 
     const prevAssignedUser = existing.assignedUser ? String(existing.assignedUser) : null;
 
-    // Replace entire resource per spec
     existing.name = name;
     existing.description = description ?? '';
     existing.deadline = coerceDeadline(deadline);
     existing.completed = coerceCompleted(req.body.completed, false);
 
-    // Assignment normalization
     const newAssignedUserId = await applyAssignment(existing, req.body.assignedUser);
 
     await existing.save();
 
     const currAssignedUser = newAssignedUserId ? String(newAssignedUserId) : null;
 
-    // Update pendingTasks sets if changed
     if (prevAssignedUser && prevAssignedUser !== currAssignedUser) {
       await User.updateOne({ _id: prevAssignedUser }, { $pull: { pendingTasks: existing._id } });
     }

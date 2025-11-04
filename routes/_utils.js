@@ -7,7 +7,7 @@ function parseJSONParam(val, name) {
 }
 
 function parseQueryParams(req, defaults = {}) {
-  const rawWhere = req.query.where ?? req.query.filter; // alias support
+  const rawWhere = req.query.where ?? req.query.filter;
   const where = rawWhere ? JSON.parse(rawWhere) : {};
 
   const sort   = parseJSONParam(req.query.sort, 'sort') || undefined;

@@ -110,7 +110,6 @@ router.put('/:id', async (req, res, next) => {
     if (dup)
       return res.status(400).json({ message: 'A user with that email already exists', data: null });
 
-    // reconcile pendingTasks
     const newTaskIds = Array.isArray(pendingTasks) ? pendingTasks : [];
     const prevTaskIds = user.pendingTasks.map(String);
     const newSet = new Set(newTaskIds.map(String));
